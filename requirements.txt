@@ -1,0 +1,4 @@
+ia_communicate
+ia_syslog
+llama-index-readers-database
+psycopg2
