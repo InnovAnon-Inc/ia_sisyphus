@@ -147,10 +147,11 @@ class SyslogDatabaseReader(DatabaseReader):
 				_doc_str  = []
 				doc_meta = {}
 				for col, entry in zip(result.keys(), item):
-					if col == 'message':
-						_doc_str.append(entry)
-					else:
+					if col == 'ReceivedAt' or col == 
 						doc_meta[col] = entry
+					else:
+					#if col == 'message':
+						_doc_str.append(f'{col}: {entry}')
 				#assert len(_doc_str) == 1
 				doc_str  = ", ".join(_doc_str)
 				documents.append(Document(text=doc_str, metadata=doc_meta))
