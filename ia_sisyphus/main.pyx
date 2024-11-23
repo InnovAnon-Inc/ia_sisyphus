@@ -37,6 +37,7 @@ from llama_index.core                        import KnowledgeGraphIndex
 from llama_index.core.agent                  import ReActAgent
 from llama_index.core.agent                  import AgentRunner
 from llama_index.core.agent                  import StructuredPlannerAgent
+from llama_index.core.base.base_query_engine import BaseQueryEngine
 from llama_index.core.base.llms.types        import MessageRole
 from llama_index.core.base.llms.types        import ChatMessage
 from llama_index.core.chat_engine.types      import ChatMode
@@ -69,6 +70,7 @@ from llama_index.core.postprocessor          import PrevNextNodePostprocessor
 from llama_index.core.postprocessor          import AutoPrevNextNodePostprocessor
 from llama_index.core.postprocessor          import SentenceEmbeddingOptimizer
 from llama_index.core.postprocessor          import LongContextReorder
+from llama_index.core.postprocessor          import TimeWeightedPostprocessor
 from llama_index.core.query_engine           import RetrieverQueryEngine
 from llama_index.core.query_engine           import RetrySourceQueryEngine
 from llama_index.core.query_engine           import RetryQueryEngine
@@ -93,6 +95,9 @@ from llama_index.vector_stores.redis         import RedisVectorStore
 from ollama                                  import pull
 from redis                                   import Redis
 from redisvl.schema                          import IndexSchema
+from retry_async                             import retry
+from sqlalchemy.exc                          import OperationalError
+from sqlalchemy                              import text
 from structlog                               import get_logger
 
 from ia_communicate.main                     import communicate
@@ -101,30 +106,53 @@ from ia_syslog.main                          import create_tables
 
 logger            = get_logger()
 
-MONITOR_QUERY:str = '''
+MONITOR_QUERY_FMT:str = '''
 WITH rows_to_delete AS (
     SELECT *
     FROM SystemEvents
-    ORDER BY id
-    LIMIT 100
+    ORDER BY id DESC
+    LIMIT {limit}
 )
 DELETE FROM SystemEvents
 WHERE id IN (SELECT id FROM rows_to_delete)
-RETURNING SystemEvents::text;
+RETURNING SystemEvents;
 '''
+    #WHERE FromHost = '{from_host}'
 
-# learn what happened in order
-#MONITOR_QUERY:str = '''
-#WITH rows_to_delete AS (
-#    SELECT *
-#    FROM SystemEvents
-#    ORDER BY id DESC
-#    LIMIT 1000
-#)
-#DELETE FROM SystemEvents
-#WHERE id IN (SELECT id FROM rows_to_delete)
-#RETURNING SystemEvents::text;
-#'''
+class SyslogDatabaseReader(DatabaseReader):
+
+	def load_data(self, query: str) -> List[Document]:
+		"""Query and load data from the Database, returning a list of Documents.
+
+		Args:
+			query (str): Query parameter to filter tables and rows.
+
+		Returns:
+			List[Document]: A list of Document objects.
+		"""
+		documents = []
+		with self.sql_database.engine.connect() as connection:
+			if query is None:
+				raise ValueError("A query parameter is necessary to filter the data")
+			else:
+				result = connection.execute(text(query))
+
+			for item in result.fetchall():
+				# fetch each item
+				#doc_str = ", ".join(
+				#	[f"{col}: {entry}" for col, entry in zip(result.keys(), item)]
+				#)
+				_doc_str  = []
+				doc_meta = {}
+				for col, entry in zip(result.keys(), item):
+					if col == 'message':
+						_doc_str.append(entry)
+					else:
+						doc_meta[col] = entry
+				#assert len(_doc_str) == 1
+				doc_str  = ", ".join(_doc_str)
+				documents.append(Document(text=doc_str, metadata=doc_meta))
+		return documents
 
 class SisyphusConfig():
 
@@ -135,6 +163,8 @@ class SisyphusConfig():
 		dbuser    :str,
 		dbpassword:str,
 		dbname    :str,
+		#from_host :str,
+		limit     :int=100,
 	)->None:
 		super().__init__()
 		self.verbose          :bool = True
@@ -157,7 +187,9 @@ class SisyphusConfig():
 		self.dbuser           :str  = dbuser
 		self.dbpassword       :str  = dbpassword
 		self.dbname           :str  = dbname
-		self.dbquery          :str  = MONITOR_QUERY
+		#self.dbquery          :str  = MONITOR_QUERY
+		#self.from_host        :str = from_host
+		self.limit            :int = limit
 
 	@property
 	def redis_url(self,)->str:
@@ -206,6 +238,7 @@ class SisyphusConfig():
 	@property
 	def namespace(self,)->str:
 		return 'Sisyphus'
+		#return 'Sisyphus ({self.from_host})'
 
 	@property
 	def collection(self,)->str:
@@ -293,27 +326,34 @@ class SisyphusConfig():
 			insert_batch_size=1,)
 
 	@property
-	def engine(self,)->BaseChatEngine:
-		# TODO time-weighted
-		# TODO node postprocessors
-		return self.index.as_chat_engine(
-			llm              =self.chat_llm,
-			memory           =self.memory,
-			chat_mode        =ChatMode.CONDENSE_PLUS_CONTEXT,
-			storage_context  =self.storage_context,
-			#transformations =self.transformations,
-			#show_progress    =self.verbose,)
+	def engine(self,)->BaseQueryEngine:
+		return self.index.as_query_engine(
+			similarity_top_k=3, # TODO
+			# TODO node post processors
 		)
 
-	def chat(self, message:str,)->Iterator[str]:
-		assert isinstance(message,str), type(message)
-		response_stream:ChatResponse = self.engine.stream_chat(message,)
-		for token in response_stream.response_gen:
-			yield token
+	#@property
+	#def engine(self,)->BaseChatEngine:
+	#	# TODO time-weighted
+	#	# TODO node postprocessors
+	#	return self.index.as_chat_engine(
+	#		llm              =self.chat_llm,
+	#		memory           =self.memory,
+	#		chat_mode        =ChatMode.CONDENSE_PLUS_CONTEXT,
+	#		storage_context  =self.storage_context,
+	#		#transformations =self.transformations,
+	#		#show_progress    =self.verbose,)
+	#	)
+
+	#def chat(self, message:str,)->Iterator[str]:
+	#	assert isinstance(message,str), type(message)
+	#	response_stream:ChatResponse = self.engine.stream_chat(message,)
+	#	for token in response_stream.response_gen:
+	#		yield token
 
 	@cached_property
 	def reader(self,)->DatabaseReader:
-		return DatabaseReader(
+		return SyslogDatabaseReader(
 		    scheme  ='postgresql',
 		    host    =self.dbhost,
 		    port    =self.dbport,
@@ -321,6 +361,15 @@ class SisyphusConfig():
 		    password=self.dbpassword,
 		    dbname  =self.dbname,)
 
+	@property
+	def dbquery(self,)->str:
+		return MONITOR_QUERY_FMT.format(
+			#from_host=self.from_host,
+			limit=self.limit,)	
+
+	@retry((
+        	OperationalError,
+	), tries=-1, delay=1, backoff=2, max_delay=None, is_async=False)
 	def load_data(self,)->List[Document]:
 		documents      :List[Document]         = self.reader.load_data(
 	    		#num_workers=
@@ -365,33 +414,36 @@ async def _main(
 		dbname    =dbname,
 	)
 
-	config.update_index()
+	while True:
+		config.update_index()
+
+	# TODO disable chat
 
 	#max_connections          :int    = 10
 	#max_keepalive_connections:int    =  5
 	#limits                   :Limits = Limits(
 	#	max_connections          =max_connections,
 	#	max_keepalive_connections=max_keepalive_connections,)
-	limits                   :Limits = get_limits()
+	#limits                   :Limits = get_limits()
 	
-	async with AsyncClient(limits=limits, timeout=None,) as client:
-		message:str         = str(f'I am {config.namespace}, the syslog RAG. I am initiating a conversation with Crow Xi, the Operator.')
-		msg    :ChatMessage = ChatMessage(
-			role   =MessageRole.ASSISTANT,
-			content=message,)
-		await config.memory.aput(message=msg,)
-		message:str         = await communicate(client=client, url=url, message=message, uid=config.namespace,)
-		await logger.ainfo('Crow Xi: %s', message,)
-		assert isinstance(message,str), type(message)
+	#async with AsyncClient(limits=limits, timeout=None,) as client:
+	#	message:str         = str(f'I am {config.namespace}, the syslog RAG. I am initiating a conversation with Crow Xi, the Operator.')
+	#	msg    :ChatMessage = ChatMessage(
+	#		role   =MessageRole.ASSISTANT,
+	#		content=message,)
+	#	await config.memory.aput(message=msg,)
+	#	message:str         = await communicate(client=client, url=url, message=message, uid=config.namespace,)
+	#	await logger.ainfo('Crow Xi: %s', message,)
+	#	assert isinstance(message,str), type(message)
 
-		while True:
-			config.update_index()
-			response:Iterator[str] = config.chat(message=message,)
-			message                = ''.join(response)
-			await logger.ainfo('Sisyphus: %s', message,)
-			message                = await communicate(client=client, url=url, message=message, uid=config.namespace,)
-			await logger.ainfo('Crow Xi: %s', message,)
-			assert isinstance(message,str), type(message)
+	#	while True:
+	#		config.update_index()
+	#		response:Iterator[str] = config.chat(message=message,)
+	#		message                = ''.join(response)
+	#		await logger.ainfo('Sisyphus: %s', message,)
+	#		message                = await communicate(client=client, url=url, message=message, uid=config.namespace,)
+	#		await logger.ainfo('Crow Xi: %s', message,)
+	#		assert isinstance(message,str), type(message)
 
 def main()->None:
 
