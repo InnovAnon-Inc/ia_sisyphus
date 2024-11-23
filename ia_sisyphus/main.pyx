@@ -191,6 +191,8 @@ class SisyphusConfig():
 		#self.from_host        :str = from_host
 		self.limit            :int = limit
 
+		self.similarity_top_k :int = 3
+
 	@property
 	def redis_url(self,)->str:
 		return str(f'redis://{self.redis_host}:{self.redis_port}')
@@ -332,8 +334,10 @@ class SisyphusConfig():
 
 	@property
 	def engine(self,)->BaseQueryEngine:
-		return self.index.as_query_engine(
-			similarity_top_k=3, # TODO
+		#self.index.as_query_engine(
+		return RetrieverQueryEngine(
+			self.retriever,
+			llm=self.chat_llm,
 			# TODO node post processors
 		)
 
