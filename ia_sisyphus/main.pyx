@@ -37,13 +37,14 @@ from llama_index.core                        import KnowledgeGraphIndex
 from llama_index.core.agent                  import ReActAgent
 from llama_index.core.agent                  import AgentRunner
 from llama_index.core.agent                  import StructuredPlannerAgent
+from llama_index.core.base.embeddings.base   import BaseEmbedding
 from llama_index.core.base.base_query_engine import BaseQueryEngine
+from llama_index.core.base.base_retriever    import BaseRetriever
 from llama_index.core.base.llms.types        import MessageRole
 from llama_index.core.base.llms.types        import ChatMessage
 from llama_index.core.constants              import DEFAULT_SIMILARITY_TOP_K
 from llama_index.core.chat_engine.types      import ChatMode
 from llama_index.core.chat_engine.types      import BaseChatEngine
-from llama_index.core.base.embeddings.base   import BaseEmbedding
 from llama_index.core.extractors             import TitleExtractor
 from llama_index.core.extractors             import SummaryExtractor
 from llama_index.core.extractors             import QuestionsAnsweredExtractor
