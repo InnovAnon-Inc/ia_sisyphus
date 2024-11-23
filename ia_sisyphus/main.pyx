@@ -40,6 +40,7 @@ from llama_index.core.agent                  import StructuredPlannerAgent
 from llama_index.core.base.base_query_engine import BaseQueryEngine
 from llama_index.core.base.llms.types        import MessageRole
 from llama_index.core.base.llms.types        import ChatMessage
+from llama_index.core.constants              import DEFAULT_SIMILARITY_TOP_K
 from llama_index.core.chat_engine.types      import ChatMode
 from llama_index.core.chat_engine.types      import BaseChatEngine
 from llama_index.core.base.embeddings.base   import BaseEmbedding
@@ -191,7 +192,7 @@ class SisyphusConfig():
 		#self.from_host        :str = from_host
 		self.limit            :int = limit
 
-		self.similarity_top_k :int = 3
+		self.similarity_top_k :int = DEFAULT_SIMILARITY_TOP_K
 
 	@property
 	def redis_url(self,)->str:
