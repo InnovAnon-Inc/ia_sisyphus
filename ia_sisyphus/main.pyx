@@ -147,7 +147,7 @@ class SyslogDatabaseReader(DatabaseReader):
 				_doc_str  = []
 				doc_meta = {}
 				for col, entry in zip(result.keys(), item):
-					if col == 'ReceivedAt' or col == 
+					if col == 'ReceivedAt' or col == 'DeviceReportedTime':
 						doc_meta[col] = entry
 					else:
 					#if col == 'message':
