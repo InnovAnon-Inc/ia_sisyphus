@@ -1,10 +1,10 @@
 services:
-  ia_setup:
-    hostname:         ia_setup.innovanon.com
+  ia_sisyphus:
+    hostname:         ia_sisyphus.innovanon.com
     build:
       context:        .
       tags:
-        - ia_setup:latest
+        - ia_sisyphus:latest
     restart:          no
     logging:
       driver:         syslog   
