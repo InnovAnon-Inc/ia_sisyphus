@@ -5,9 +5,9 @@ services:
       context:        .
       tags:
         - innovanon/ia_sisyphus:latest
-        -           ia_sisyphus:latest
-        - innovanon/ia_sisyphus
-        -           ia_sisyphus
+    #    -           ia_sisyphus:latest
+    #    - innovanon/ia_sisyphus
+    #    -           ia_sisyphus
     image:            innovanon/ia_sisyphus
     restart:          no
     logging:
