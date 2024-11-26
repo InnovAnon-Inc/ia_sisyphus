@@ -4,7 +4,10 @@ services:
     build:
       context:        .
       tags:
-        - ia_sisyphus:latest
+        - innovanon/ia_sisyphus:latest
+        -           ia_sisyphus:latest
+        - innovanon/ia_sisyphus
+        -           ia_sisyphus
     restart:          no
     logging:
       driver:         syslog   
