@@ -1,4 +1,5 @@
-FROM innovanon/ia_communicate AS communicate
+#FROM innovanon/ia_communicate AS communicate
+FROM ia_communicate AS communicate
 COPY ./ ./
 RUN pip install --no-cache-dir --upgrade -r requirements.txt
 RUN pip install --no-cache-dir --upgrade .
