@@ -82,6 +82,7 @@ from llama_index.core.retrievers             import AutoMergingRetriever
 from llama_index.core.storage.chat_store     import BaseChatStore
 from llama_index.core.tools                  import QueryEngineTool
 from llama_index.core.tools                  import FunctionTool
+from llama_index.core.tools.types            import ToolMetadata
 #from llama_index.extractors.entity           import EntityExtractor
 from llama_index.llms.ollama                 import Ollama
 from llama_index.multi_modal_llms.ollama     import OllamaMultiModal
@@ -112,6 +113,7 @@ MONITOR_QUERY_FMT:str = '''
 WITH rows_to_delete AS (
     SELECT *
     FROM SystemEvents
+    WHERE FromHost = '{from_host}'
     ORDER BY id DESC
     LIMIT {limit}
 )
@@ -119,7 +121,6 @@ DELETE FROM SystemEvents
 WHERE id IN (SELECT id FROM rows_to_delete)
 RETURNING SystemEvents;
 '''
-    #WHERE FromHost = '{from_host}'
 
 class SyslogDatabaseReader(DatabaseReader):
 
@@ -166,7 +167,7 @@ class SisyphusConfig():
 		dbuser    :str,
 		dbpassword:str,
 		dbname    :str,
-		#from_host :str,
+		from_host :str,
 		limit     :int=100,
 	)->None:
 		super().__init__()
@@ -191,7 +192,7 @@ class SisyphusConfig():
 		self.dbpassword       :str  = dbpassword
 		self.dbname           :str  = dbname
 		#self.dbquery          :str  = MONITOR_QUERY
-		#self.from_host        :str = from_host
+		self.from_host        :str = from_host
 		self.limit            :int = limit
 
 		self.similarity_top_k :int = DEFAULT_SIMILARITY_TOP_K
@@ -242,8 +243,8 @@ class SisyphusConfig():
 
 	@property
 	def namespace(self,)->str:
-		return 'Sisyphus'
-		#return 'Sisyphus ({self.from_host})'
+		#return 'Sisyphus'
+		return 'Sisyphus ({self.from_host})'
 
 	@property
 	def collection(self,)->str:
@@ -343,6 +344,16 @@ class SisyphusConfig():
 			#response_synthesizer=,
 		)
 
+	@cached_property
+	def tool_metadata(self,)->ToolMetadata:
+		return ToolMetadata(
+			# TODO per host
+			description   =str(f'Database Index Retriever Query Engine: Syslog {self.from_host}'),
+			#name         =None,
+			#fn_schema    =,
+			#return_direct=False,
+		)
+
 	#@property
 	#def engine(self,)->BaseQueryEngine:
 	#	#self.index.as_query_engine(
@@ -384,7 +395,7 @@ class SisyphusConfig():
 	@property
 	def dbquery(self,)->str:
 		return MONITOR_QUERY_FMT.format(
-			#from_host=self.from_host,
+			from_host=self.from_host,
 			limit=self.limit,)	
 
 	@retry((
@@ -423,7 +434,8 @@ async def _main(
 	dbuser    :str,
 	dbpassword:str,
 	dbname    :str,
-	url       :str,
+	#url       :str,
+	from_host :str,
 )->None:
 
 	config:SisyphusConfig = SisyphusConfig(
@@ -432,6 +444,7 @@ async def _main(
 		dbuser    =dbuser,
 		dbpassword=dbpassword,
 		dbname    =dbname,
+		from_host =from_host,
 	)
 
 	while True:
@@ -474,13 +487,15 @@ def main()->None:
 	dbuser         :str             =     os.getenv ('PGUSER',      'rsyslog')
 	dbpassword     :str             =     os.environ['PGPASSWORD']
 	dbname         :str             =     os.getenv ('DBNAME',      'Syslog')
-	url            :str             =     os.getenv ('CROWXI',      'http://192.168.2.249:10007/')
+	#url            :str             =     os.getenv ('CROWXI',      'http://192.168.2.249:10007/')
+	from_host      :str             =     os.environ['FROM_HOST']
 	logger.info('db host         : %s', dbhost,)
 	logger.info('db port         : %s', dbport,)
 	logger.info('db user         : %s', dbuser,)
 	#logger.debug('db password     : %s', dbpassword,)
 	logger.info('db name         : %s', dbname,)
-	logger.info('url             : %s', url,)
+	#logger.info('url             : %s', url,)
+	logger.info('from host       : %s', from_host,)
 
 	asyncio.run(create_tables(
 		user    =dbuser,
@@ -494,7 +509,8 @@ def main()->None:
 		dbuser    =dbuser,
 		dbpassword=dbpassword,
 		dbname    =dbname,
-		url       =url, ))
+		from_host =from_host,))
+		#url       =url, ))
 
 if __name__ == '__main__':
 	main()
