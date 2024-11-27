@@ -335,14 +335,22 @@ class SisyphusConfig():
 		return self.index.as_retriever(
 			similarity_top_k=self.similarity_top_k,)
 
-	@property
-	def engine(self,)->BaseQueryEngine:
-		#self.index.as_query_engine(
-		return RetrieverQueryEngine(
-			self.retriever,
-			llm=self.chat_llm,
-			# TODO node post processors
+	@cached_property
+	def query_engine(self,)->BaseQueryEngine:
+		return RetrieverQueryEngine.from_args(
+			retriever=self.retriever,
+			llm      =self.chat_llm,
+			#response_synthesizer=,
 		)
+
+	#@property
+	#def engine(self,)->BaseQueryEngine:
+	#	#self.index.as_query_engine(
+	#	return RetrieverQueryEngine(
+	#		self.retriever,
+	#		llm=self.chat_llm,
+	#		# TODO node post processors
+	#	)
 
 	#@property
 	#def engine(self,)->BaseChatEngine:
