@@ -7,6 +7,7 @@
 import asyncio
 from functools                               import cached_property
 import os
+from pathlib                                 import Path
 import time
 from typing                                  import Iterator
 from typing                                  import List
@@ -418,6 +419,7 @@ class SisyphusConfig():
 
 	def update_index(self,)->None:
 		docs:List[Document] = self.load_data()
+		logger.debug('#docs: %s', len(docs),)
 		self.index.refresh(docs)
 
 #async def communicate(client:AsyncClient, url:str, message:str,)->str:
@@ -495,7 +497,11 @@ def main()->None:
 	dbpassword     :str             =     os.environ['PGPASSWORD']
 	dbname         :str             =     os.getenv ('DBNAME',      'Syslog')
 	#url            :str             =     os.getenv ('CROWXI',      'http://192.168.2.249:10007/')
-	from_host      :str             =     os.environ['FROM_HOST']
+	from_host      :Optional[str]   =     os.getenv ('FROM_HOST', None)
+	if (from_host is None):
+		from_host               = Path().resolve().name
+		from_host               = str(f'{from_host}.innovanon.com')
+	assert isinstance(from_host,str), type(from_host)
 	logger.info('db host         : %s', dbhost,)
 	logger.info('db port         : %s', dbport,)
 	logger.info('db user         : %s', dbuser,)
