@@ -83,6 +83,7 @@ from llama_index.core.storage.chat_store     import BaseChatStore
 from llama_index.core.tools                  import QueryEngineTool
 from llama_index.core.tools                  import FunctionTool
 from llama_index.core.tools.types            import ToolMetadata
+from llama_index.core.tools.types            import AsyncBaseTool
 #from llama_index.extractors.entity           import EntityExtractor
 from llama_index.llms.ollama                 import Ollama
 from llama_index.multi_modal_llms.ollama     import OllamaMultiModal
@@ -349,10 +350,16 @@ class SisyphusConfig():
 		return ToolMetadata(
 			# TODO per host
 			description   =str(f'Database Index Retriever Query Engine: Syslog {self.from_host}'),
-			#name         =None,
+			name          =str(f'sisyphus_{self.from_host}'),
 			#fn_schema    =,
 			#return_direct=False,
 		)
+
+	@cached_property
+	def query_engine_tool(self,)->AsyncBaseTool:
+		return QueryEngineTool(
+			query_engine=self.query_engine,
+			metadata    =self.tool_metadata, )
 
 	#@property
 	#def engine(self,)->BaseQueryEngine:
